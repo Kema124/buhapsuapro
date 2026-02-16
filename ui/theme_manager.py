@@ -4,6 +4,7 @@ from typing import Callable
 
 from PySide6.QtWidgets import QApplication
 
+from ui.assets import qss_icon_url
 from ui.style_dark import DARK_QSS
 from ui.style_light import LIGHT_QSS
 
@@ -28,14 +29,19 @@ class ThemeManager:
             return
 
         cls._current = "dark" if theme == "dark" else "light"
-        app.setStyleSheet(DARK_QSS if cls._current == "dark" else LIGHT_QSS)
 
-        # уведомим подписчиков
+        qss = DARK_QSS if cls._current == "dark" else LIGHT_QSS
+
+        # подставляем пути к ассетам в QSS
+        close_url = qss_icon_url("close.svg")
+        qss = qss.replace("%CLOSE_SVG%", close_url)
+
+        app.setStyleSheet(qss)
+
         for cb in list(cls._subscribers):
             try:
                 cb(cls._current)
             except Exception:
-                # подписчик не должен ломать приложение
                 pass
 
     @classmethod

@@ -14,9 +14,7 @@ class Organization(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
 
-    # В твоём проекте ИНН для организации — 8 цифр (как в UI), но в БД пусть будет строка.
     inn: Mapped[str] = mapped_column(String(12), nullable=False)
-
     kpp: Mapped[str | None] = mapped_column(String(9), nullable=True)
     ogrn: Mapped[str | None] = mapped_column(String(15), nullable=True)
     address: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -59,6 +57,69 @@ class Contagent(Base):
         return f"<Contagent {self.name}>"
 
 
+class Bank(Base):
+    __tablename__ = "banks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+
+    # RU | ABH (условно)
+    country: Mapped[str] = mapped_column(String(10), nullable=False, default="RU")
+
+    bik: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    corr_account: Mapped[str | None] = mapped_column(String(34), nullable=True)
+    swift: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    address: Mapped[str | None] = mapped_column(String, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    def __repr__(self) -> str:
+        return f"<Bank {self.name}>"
+
+
+class Tax(Base):
+    __tablename__ = "taxes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+
+    # tax | fee | contribution | duty
+    tax_type: Mapped[str] = mapped_column(String(30), nullable=False, default="tax")
+
+    rate: Mapped[str | None] = mapped_column(String(40), nullable=True)  # "10%" / "1000 руб" / etc.
+    kbk: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    periodicity: Mapped[str | None] = mapped_column(String(30), nullable=True)  # month/quarter/year/once
+
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    def __repr__(self) -> str:
+        return f"<Tax {self.name}>"
+
+
+class ExpenseArticle(Base):
+    __tablename__ = "expense_articles"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+
+    group: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    def __repr__(self) -> str:
+        return f"<ExpenseArticle {self.name}>"
+
+
 class Contract(Base):
     __tablename__ = "contracts"
 
@@ -72,7 +133,6 @@ class Contract(Base):
     # draft | active | closed
     status: Mapped[str] = mapped_column(String(20), default="draft")
 
-    # для архива
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     contagent: Mapped[Contagent | None] = relationship("Contagent")

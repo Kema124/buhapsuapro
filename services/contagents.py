@@ -157,8 +157,12 @@ def delete_contagents_forever(ids: list[int]) -> None:
 # ------------------------
 # SEARCH
 # ------------------------
-
 def search_contagents(query: str) -> list[Contagent]:
+    """Гибкий поиск (как в 1С).
+
+    Запрос разбивается на токены (по пробелам).
+    Для каждого токена применяется AND, а по полям — OR.
+    """
     session = db.get_session()
     try:
         q = session.query(Contagent).filter(Contagent.is_deleted == False)
@@ -168,8 +172,12 @@ def search_contagents(query: str) -> list[Contagent]:
             q = q.filter(
                 or_(
                     func.lower(Contagent.name).like(f"%{low}%"),
-                    Contagent.inn.like(f"%{low}%"),
-                    Contagent.kpp.like(f"%{low}%"),
+                    func.lower(func.coalesce(Contagent.inn, "")).like(f"%{low}%"),
+                    func.lower(func.coalesce(Contagent.kpp, "")).like(f"%{low}%"),
+                    func.lower(func.coalesce(Contagent.phone, "")).like(f"%{low}%"),
+                    func.lower(func.coalesce(Contagent.email, "")).like(f"%{low}%"),
+                    func.lower(func.coalesce(Contagent.address, "")).like(f"%{low}%"),
+                    func.lower(func.coalesce(Contagent.note, "")).like(f"%{low}%"),
                 )
             )
 

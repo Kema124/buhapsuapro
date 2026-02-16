@@ -1,4 +1,5 @@
 import sys
+
 from PySide6.QtWidgets import QApplication
 
 from ui.db_selector import DatabaseSelector
@@ -14,11 +15,14 @@ from ui.app_settings import AppSettings
 class AccountingApp:
     def __init__(self, app: QApplication):
         self.app = app
+        self.db_selector: DatabaseSelector | None = None
+        self.main_window: MainWindow | None = None
+
         self.db_selector = DatabaseSelector(on_selected=self.start_app)
-        self.main_window = None
 
     def start_app(self, db_path: str) -> None:
         init_db(db_path)
+
         org = get_organization()
 
         if self.main_window is not None:
@@ -26,10 +30,14 @@ class AccountingApp:
             self.main_window.deleteLater()
             self.main_window = None
 
-        self.main_window = MainWindow(organization=org, on_back=self.back_to_selector)
+        self.main_window = MainWindow(
+            organization=org,
+            on_back=self.back_to_selector
+        )
         self.main_window.show()
 
-        self.db_selector.hide()
+        if self.db_selector is not None:
+            self.db_selector.hide()
 
     def back_to_selector(self) -> None:
         if self.main_window is not None:
@@ -37,11 +45,16 @@ class AccountingApp:
             self.main_window.deleteLater()
             self.main_window = None
 
+        if self.db_selector is None:
+            self.db_selector = DatabaseSelector(on_selected=self.start_app)
+
         self.db_selector.show()
         self.db_selector.raise_()
         self.db_selector.activateWindow()
 
     def run(self) -> int:
+        if self.db_selector is None:
+            self.db_selector = DatabaseSelector(on_selected=self.start_app)
         self.db_selector.show()
         return self.app.exec()
 
@@ -49,12 +62,15 @@ class AccountingApp:
 def main() -> int:
     app = QApplication(sys.argv)
 
+    # Иконка приложения (можно заменить на .ico)
     app.setWindowIcon(load_icon("app_icon.png"))
 
-    ui_settings = AppSettings.load()
-    ThemeManager.apply(ui_settings.theme)
+    # Тема по настройкам
+    st = AppSettings.load()
+    ThemeManager.apply(st.theme)
 
-    return AccountingApp(app).run()
+    accounting = AccountingApp(app)
+    return accounting.run()
 
 
 if __name__ == "__main__":

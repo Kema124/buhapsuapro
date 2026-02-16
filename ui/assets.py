@@ -4,17 +4,23 @@ import os
 from functools import lru_cache
 from typing import Optional
 
-from PySide6.QtCore import QByteArray, QSize, Qt
+from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QIcon, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
 
 def _candidates() -> list[str]:
+    """Папки-кандидаты для поиска assets.
+
+    Поддерживаем запуск:
+    - из корня проекта
+    - из подпапки (cwd может отличаться)
+    """
     here = os.path.dirname(__file__)      # ui/
     proj = os.path.dirname(here)          # project root approx
     return [
-        os.path.join(here, "assets"),
         os.path.join(proj, "assets"),
+        os.path.join(here, "assets"),
         os.path.join(os.getcwd(), "assets"),
     ]
 
@@ -35,16 +41,20 @@ def icon_path(name: str) -> str:
     return os.path.join(_candidates()[0], "icons", name)
 
 
+def qss_icon_url(name: str) -> str:
+    """Абсолютный путь для QSS: url(/abs/path)."""
+    p = icon_path(name)
+    # QSS любит прямые слэши
+    return p.replace("\\", "/")
+
+
 def load_pixmap(name: str) -> QPixmap:
     return QPixmap(asset_path(name))
 
 
 @lru_cache(maxsize=256)
 def _render_svg_icon(path: str, color_hex: str) -> QIcon:
-    """
-    Рендерим SVG в пиксмапы разных размеров и красим stroke/fill.
-    В SVG должны быть stroke="currentColor" (и/или fill="currentColor").
-    """
+    """Рендер SVG -> QIcon, подставляя цвет вместо currentColor."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             svg_txt = f.read()
@@ -72,15 +82,16 @@ def _render_svg_icon(path: str, color_hex: str) -> QIcon:
     return icon
 
 
-def load_icon(name: str, *, color: Optional[str] = None, size: int | None = None) -> QIcon:
-    """
-    Если svg — можем задать цвет.
+def load_icon(name: str, *, color: Optional[str] = None) -> QIcon:
+    """Загрузить иконку.
+
+    - SVG из assets/icons: красим currentColor.
+    - PNG/JPG: загружаем как есть.
     """
     if name.lower().endswith(".svg"):
         p = icon_path(name)
         if os.path.exists(p):
             if color is None:
-                # по умолчанию пусть будет “тёмный” (для светлой темы)
                 color = "#22324a"
             return _render_svg_icon(p, color)
         return QIcon.fromTheme(name)
