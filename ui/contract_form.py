@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QLineEdit, QComboBox,
     QHBoxLayout, QPushButton, QMessageBox, QDateEdit
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDate
 
 from services.contagents import get_all_contagents
 from services.contracts import (
@@ -63,7 +63,7 @@ class ContractForm(QDialog):
         layout.addWidget(QLabel("Дата *"))
         self.date = QDateEdit()
         self.date.setCalendarPopup(True)
-        self.date.setDate(datetime.now().date())
+        self.date.setDate(QDate.currentDate())
         layout.addWidget(self.date)
 
         # Сумма
@@ -126,7 +126,10 @@ class ContractForm(QDialog):
             self.setWindowTitle("Копия договора")
 
         self.number.setText(c.number)
-        self.date.setDate(c.date)
+        if c.date is not None:
+            self.date.setDate(QDate(c.date.year, c.date.month, c.date.day))
+        else:
+            self.date.setDate(QDate.currentDate())
         self.sum.setText("" if c.sum is None else str(c.sum))
 
         idx = self.status.findData(c.status)

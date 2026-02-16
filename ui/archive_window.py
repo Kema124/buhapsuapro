@@ -1,140 +1,39 @@
 from __future__ import annotations
 
-from typing import Any
-from time import monotonic
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QMenu
-)
-from PySide6.QtCore import Qt, QPoint
-
-from services.contracts import (
-    get_deleted_contracts, restore_contract, delete_contracts_forever
-)
+from ui.archive_contagents_tab import ArchiveContagentsTab
+from ui.archive_contracts_tab import ArchiveContractsTab
 
 
-class ArchiveContractsTab(QWidget):
-    def __init__(self, main_window=None):
+class ArchiveWindow(QWidget):
+    """Окно архива. Внутри — вкладки по типам объектов (как в 1С)."""
+
+    def __init__(self, main_window=None) -> None:
         super().__init__()
         self.main_window = main_window
-        self._confirm_deadline = 0.0
 
-        self.main_layout = QVBoxLayout(self)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
 
-        btns = QHBoxLayout()
-        self.restore_btn = QPushButton("Восстановить")
-        self.delete_forever_btn = QPushButton("Удалить навсегда")
-        btns.addWidget(self.restore_btn)
-        btns.addWidget(self.delete_forever_btn)
-        btns.addStretch()
-        self.main_layout.addLayout(btns)
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.layout.addWidget(self.tabs)
 
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["ID", "Номер", "Дата", "Контрагент", "Сумма", "Статус"])
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.contagents_tab = ArchiveContagentsTab(main_window=main_window)
+        self.contracts_tab = ArchiveContractsTab(main_window=main_window)
 
-        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.table.customContextMenuRequested.connect(self._menu)
+        self.tabs.addTab(self.contagents_tab, "Контрагенты")
+        self.tabs.addTab(self.contracts_tab, "Договоры")
 
-        self.main_layout.addWidget(self.table)
-
-        self.restore_btn.clicked.connect(self.restore_selected)
-        self.delete_forever_btn.clicked.connect(self.delete_forever_selected)
-
-        self.load_data()
-
-    def _msg(self, text: str, kind: str = "info", timeout: int = 3500) -> None:
-        if self.main_window:
-            self.main_window.show_message(text, kind, timeout)
+    def open_section(self, section: str) -> None:
+        section = (section or "").lower()
+        if section in {"contagents", "контрагенты"}:
+            self.tabs.setCurrentWidget(self.contagents_tab)
+        elif section in {"contracts", "договоры"}:
+            self.tabs.setCurrentWidget(self.contracts_tab)
 
     def load_data(self) -> None:
-        data = get_deleted_contracts()
-        self.table.setRowCount(0)
-
-        for r, c in enumerate(data):
-            self.table.insertRow(r)
-            it_id = QTableWidgetItem(str(c.id))
-            it_id.setData(Qt.ItemDataRole.UserRole, int(c.id))
-            self.table.setItem(r, 0, it_id)
-            self.table.setItem(r, 1, QTableWidgetItem(c.number))
-            self.table.setItem(r, 2, QTableWidgetItem(str(c.date)))
-            self.table.setItem(r, 3, QTableWidgetItem(c.contagent.name if c.contagent else ""))
-            self.table.setItem(r, 4, QTableWidgetItem("" if c.sum is None else str(c.sum)))
-            self.table.setItem(r, 5, QTableWidgetItem(c.status))
-
-    def selected_ids(self) -> list[int]:
-        rows = {it.row() for it in self.table.selectedItems()}
-        ids: list[int] = []
-        for r in rows:
-            item = self.table.item(r, 0)
-            if not item:
-                continue
-            v: Any = item.data(Qt.ItemDataRole.UserRole)
-            try:
-                ids.append(int(v))
-            except Exception:
-                pass
-        return ids
-
-    def restore_selected(self) -> None:
-        ids = self.selected_ids()
-        if not ids:
-            self._msg("Выберите договоры", "warning", 2500)
-            return
-
-        ok = 0
-        for cid in ids:
-            try:
-                restore_contract(cid)
-                ok += 1
-            except Exception as e:
-                self._msg(f"Не удалось восстановить {cid}: {e}", "error", 6000)
-
-        self.load_data()
-        self._msg(f"Восстановлено: {ok}", "success", 3000)
-
-    def delete_forever_selected(self) -> None:
-        ids = self.selected_ids()
-        if not ids:
-            self._msg("Выберите договоры", "warning", 2500)
-            return
-
-        now = monotonic()
-        if now > self._confirm_deadline:
-            self._confirm_deadline = now + 5.0
-            self._msg(
-                f"Повторите “Удалить навсегда” в течение 5 секунд (выбрано: {len(ids)})",
-                "warning",
-                5000
-            )
-            return
-
-        try:
-            delete_contracts_forever(ids)
-            self.load_data()
-            self._msg(f"Удалено навсегда: {len(ids)}", "success", 3500)
-        except Exception as e:
-            self._msg(str(e), "error", 7000)
-
-    def _menu(self, pos: QPoint) -> None:
-        menu = QMenu(self)
-        a_restore = menu.addAction("Восстановить")
-        a_delete = menu.addAction("Удалить навсегда")
-        menu.addSeparator()
-        a_refresh = menu.addAction("Обновить")
-
-        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
-        if not chosen:
-            return
-
-        if chosen == a_restore:
-            self.restore_selected()
-        elif chosen == a_delete:
-            self.delete_forever_selected()
-        elif chosen == a_refresh:
-            self.load_data()
-            self._msg("Обновлено", "success", 1500)
+        # Для кнопки «Обновить» в тулбаре
+        self.contagents_tab.load_data()
+        self.contracts_tab.load_data()

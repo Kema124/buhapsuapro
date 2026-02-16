@@ -1,24 +1,30 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from datetime import date
+
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from database.db import Base
 
 
 class Organization(Base):
     __tablename__ = "organizations"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    inn = Column(String(12), nullable=False)
-    kpp = Column(String(9), nullable=True)
-    ogrn = Column(String(15), nullable=True)
-    address = Column(String, nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+
+    # В твоём проекте ИНН для организации — 8 цифр (как в UI), но в БД пусть будет строка.
+    inn: Mapped[str] = mapped_column(String(12), nullable=False)
+
+    kpp: Mapped[str | None] = mapped_column(String(9), nullable=True)
+    ogrn: Mapped[str | None] = mapped_column(String(15), nullable=True)
+    address: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # company | ip | person
-    organization_type = Column(String(20), nullable=False, default="company")
+    organization_type: Mapped[str] = mapped_column(String(20), nullable=False, default="company")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Organization {self.name}>"
 
 
@@ -47,42 +53,48 @@ class Contagent(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     organization_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("organizations.id"), nullable=True)
-    organization: Mapped["Organization"] = relationship("Organization")
+    organization: Mapped[Organization | None] = relationship("Organization")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Contagent {self.name}>"
 
 
 class Contract(Base):
     __tablename__ = "contracts"
 
-    id = Column(Integer, primary_key=True, index=True)
-    contagent_id = Column(Integer, ForeignKey("contagents.id"))
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    contagent_id: Mapped[int] = mapped_column(Integer, ForeignKey("contagents.id"))
 
-    number = Column(String, nullable=False)
-    date = Column(Date, nullable=False)
-    sum = Column(Integer, nullable=True)
+    number: Mapped[str] = mapped_column(String, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    sum: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # draft | active | closed
-    status = Column(String, default="draft")
+    status: Mapped[str] = mapped_column(String(20), default="draft")
 
-    # ✅ для архива договоров
-    is_deleted = Column(Boolean, default=False)
+    # для архива
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    contagent = relationship("Contagent")
+    contagent: Mapped[Contagent | None] = relationship("Contagent")
+
+    def __repr__(self) -> str:
+        return f"<Contract {self.number}>"
 
 
 class Invoice(Base):
     __tablename__ = "invoices"
 
-    id = Column(Integer, primary_key=True, index=True)
-    contract_id = Column(Integer, ForeignKey("contracts.id"))
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    contract_id: Mapped[int] = mapped_column(Integer, ForeignKey("contracts.id"))
 
-    number = Column(String, nullable=False)
-    date = Column(Date, nullable=False)
-    sum = Column(Integer, nullable=False)
+    number: Mapped[str] = mapped_column(String, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    sum: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # draft | posted | canceled
-    status = Column(String, default="draft")
+    status: Mapped[str] = mapped_column(String(20), default="draft")
 
-    contract = relationship("Contract")
+    contract: Mapped[Contract | None] = relationship("Contract")
+
+    def __repr__(self) -> str:
+        return f"<Invoice {self.number}>"

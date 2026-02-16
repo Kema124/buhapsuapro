@@ -72,7 +72,7 @@ def _render_svg_icon(path: str, color_hex: str) -> QIcon:
     return icon
 
 
-def load_icon(name: str, *, color: Optional[str] = None) -> QIcon:
+def load_icon(name: str, *, color: Optional[str] = None, size: int | None = None) -> QIcon:
     """
     Если svg — можем задать цвет.
     """
