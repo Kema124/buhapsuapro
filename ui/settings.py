@@ -56,4 +56,6 @@ class SettingsWindow(QWidget):
         ThemeManager.apply(st.theme)
 
         if self.main_window:
+            self.main_window.set_sidebar_visible(st.sidebar_visible)
+
             self.main_window.show_message("Настройки применены", "success", 2000)

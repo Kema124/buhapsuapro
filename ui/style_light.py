@@ -10,6 +10,9 @@ QToolBar {
     padding: 6px;
 }
 QToolBar * { color: white; }
+QToolBar QWidget { background: transparent; }
+QToolBar QToolButton { background: transparent; }
+
 
 QToolButton {
     background: transparent;
@@ -65,6 +68,20 @@ QTabBar::close-button {
 QTabBar::close-button:hover {
     background: rgba(31,60,115,0.12);
     border-radius: 6px;
+}
+
+
+
+/* Filter panel (1C) */
+#FilterPanel {
+    background: #ffffff;
+    border: 1px solid #dbe2ef;
+    border-radius: 12px;
+}
+#FilterLabel {
+    background: transparent;
+    color: #22324a;
+    font-weight: 700;
 }
 
 /* Inputs */

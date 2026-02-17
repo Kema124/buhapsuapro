@@ -98,42 +98,38 @@ class ContagentsWindow(QWidget):
         self.copy_btn.clicked.connect(self.copy_contagent)
         self.delete_btn.clicked.connect(self.soft_delete_selected)
 
-        # filter widget
-        self.filter_widget = QWidget()
-        self.filter_layout = QVBoxLayout(self.filter_widget)
+        # filter panel (1C)
+        from ui.one_c_filter import OneCFilterPanel, FilterField
 
-        self.f_name = QLineEdit(); self.f_name.setPlaceholderText("Название")
-        self.f_inn = QLineEdit(); self.f_inn.setPlaceholderText("ИНН")
+        self.filter_panel = OneCFilterPanel([
+            FilterField("name", "Название", placeholder=""),
+            FilterField("inn", "ИНН", placeholder=""),
+            FilterField("role", "Роль", kind="combo", items=[
+                ("Все", None),
+                ("Покупатель", "buyer"),
+                ("Поставщик", "supplier"),
+                ("Оба", "both"),
+            ]),
+            FilterField("organization_type", "Тип", kind="combo", items=[
+                ("Все", None),
+                ("Юр. лицо", "company"),
+                ("ИП", "ip"),
+                ("Физ. лицо", "person"),
+            ]),
+            FilterField("is_active", "Активность", kind="combo", items=[
+                ("Все", None),
+                ("Активные", True),
+                ("Неактивные", False),
+            ]),
+        ])
+        self.filter_panel.setObjectName("FilterPanel")
+        self.filter_panel.applied.connect(self._on_filter_applied)
+        self.filter_panel.reset.connect(self._on_filter_reset)
 
-        self.f_role = QComboBox()
-        self.f_role.addItem("Все", None)
-        self.f_role.addItem("Покупатель", "buyer")
-        self.f_role.addItem("Поставщик", "supplier")
-        self.f_role.addItem("Оба", "both")
+        self.filter_panel.setVisible(False)
+        self.main_layout.addWidget(self.filter_panel)
 
-        self.f_org_type = QComboBox()
-        self.f_org_type.addItem("Все", None)
-        self.f_org_type.addItem("Юр. лицо", "company")
-        self.f_org_type.addItem("ИП", "ip")
-        self.f_org_type.addItem("Физ. лицо", "person")
-
-        self.f_status = QComboBox()
-        self.f_status.addItem("Все", None)
-        self.f_status.addItem("Активные", True)
-        self.f_status.addItem("Неактивные", False)
-
-        apply_btn = QPushButton("Применить")
-        reset_btn = QPushButton("Сбросить")
-        apply_btn.clicked.connect(self.apply_filter)
-        reset_btn.clicked.connect(self.reset_filter)
-
-        for w in (self.f_name, self.f_inn, self.f_role, self.f_org_type, self.f_status, apply_btn, reset_btn):
-            self.filter_layout.addWidget(w)
-
-        self.filter_widget.setVisible(False)
-        self.main_layout.addWidget(self.filter_widget)
-
-        # table
+# table
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["ID", "Роль", "Название", "ИНН", "КПП", "Тип"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -255,26 +251,18 @@ class ContagentsWindow(QWidget):
         self._fill_table(search_contagents(text))
 
     def toggle_filter(self) -> None:
-        self.filter_widget.setVisible(not self.filter_widget.isVisible())
+        self.filter_panel.setVisible(not self.filter_panel.isVisible())
 
-    def apply_filter(self) -> None:
+    def _on_filter_applied(self, filters: dict) -> None:
         from services.contagents import filter_contagents
-        filters = {
-            "name": self.f_name.text().strip() or None,
-            "inn": self.f_inn.text().strip() or None,
-            "role": self.f_role.currentData(),
-            "organization_type": self.f_org_type.currentData(),
-            "is_active": self.f_status.currentData(),
-        }
         self._fill_table(filter_contagents(filters))
 
-    def reset_filter(self) -> None:
-        self.f_name.clear()
-        self.f_inn.clear()
-        self.f_role.setCurrentIndex(0)
-        self.f_org_type.setCurrentIndex(0)
-        self.f_status.setCurrentIndex(0)
+    def _on_filter_reset(self) -> None:
         self.load_data()
+
+    def reset_filter(self) -> None:
+        # совместимость (если где-то вызывается)
+        self._on_filter_reset()
 
     # misc
     def _after_change(self) -> None:

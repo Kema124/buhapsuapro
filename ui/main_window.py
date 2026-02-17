@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import Callable, Protocol, runtime_checkable, Optional
+from typing import Callable, Protocol, runtime_checkable
 
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
+    QHBoxLayout,
     QVBoxLayout,
     QTabWidget,
     QStatusBar,
+    QMenu,
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QPoint
 
 from database.models import Organization
 from services.organization import get_organization
@@ -17,12 +19,12 @@ from services.organization import get_organization
 from ui.toolbar import create_toolbar
 from ui.settings import SettingsWindow
 from ui.archive_window import ArchiveWindow
-from ui.directories_window import DirectoriesWindow
 from ui.documents_window import DocumentsWindow
 from ui.tab_manager import TabManager, TabSpec
 from ui.messenger import StatusMessenger, MsgType
 from ui.theme_manager import ThemeManager
 from ui.app_settings import AppSettings
+from ui.sidebar import Sidebar
 
 
 @runtime_checkable
@@ -43,9 +45,12 @@ class MainWindow(QMainWindow):
         self._init_ui()
         self._connect_actions()
 
-        # применяем сохранённые настройки (тема и т.п.)
+        # применяем сохранённые настройки
         st = AppSettings.load()
         ThemeManager.apply(st.theme)
+        self.set_sidebar_visible(st.sidebar_visible, animate=False)
+
+        self.refresh_org()
 
     # =========================================================
     # UI
@@ -63,18 +68,28 @@ class MainWindow(QMainWindow):
         ) = create_toolbar(self)
 
         self.addToolBar(toolbar)
-        self.back_action.triggered.connect(self.on_back)
 
+        # central: sidebar + tabs
         central = QWidget()
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(10, 10, 10, 10)
+        root = QHBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
         self.setCentralWidget(central)
+
+        self.sidebar = Sidebar()
+        root.addWidget(self.sidebar)
+
+        right = QWidget()
+        right_lay = QVBoxLayout(right)
+        right_lay.setContentsMargins(10, 10, 10, 10)
+        right_lay.setSpacing(8)
+        root.addWidget(right, 1)
 
         self.tabs = QTabWidget()
         self.tabs.setMovable(True)
         self.tabs.setTabsClosable(True)
         self.tabs.setDocumentMode(True)
-        layout.addWidget(self.tabs)
+        right_lay.addWidget(self.tabs)
 
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
@@ -82,16 +97,11 @@ class MainWindow(QMainWindow):
 
         self.tabs_manager = TabManager(self.tabs, main_window=self)
 
+        # реестры/разделы
         self.tabs_manager.register(TabSpec(
-            key="documents",
+            key="documents_hub",
             title="Документы",
             factory=lambda: DocumentsWindow(main_window=self),
-            singleton=True,
-        ))
-        self.tabs_manager.register(TabSpec(
-            key="directories",
-            title="Справочники",
-            factory=lambda: DirectoriesWindow(main_window=self),
             singleton=True,
         ))
         self.tabs_manager.register(TabSpec(
@@ -101,18 +111,103 @@ class MainWindow(QMainWindow):
             singleton=True,
         ))
 
-        self.refresh_org()
+        # справочники (каждый открывается отдельной вкладкой)
+        self.tabs_manager.register(TabSpec(
+            key="org",
+            title="Организация",
+            factory=lambda: __import__("ui.org_registration", fromlist=["OrganizationRegistration"])
+            .OrganizationRegistration(main_window=self),
+            singleton=True,
+        ))
+        self.tabs_manager.register(TabSpec(
+            key="contagents",
+            title="Контрагенты",
+            factory=lambda: __import__("ui.contagents_window", fromlist=["ContagentsWindow"])
+            .ContagentsWindow(main_window=self),
+            singleton=True,
+        ))
+        self.tabs_manager.register(TabSpec(
+            key="banks",
+            title="Банки",
+            factory=lambda: __import__("ui.banks_window", fromlist=["BanksWindow"])
+            .BanksWindow(main_window=self),
+            singleton=True,
+        ))
+        self.tabs_manager.register(TabSpec(
+            key="taxes",
+            title="Налоги",
+            factory=lambda: __import__("ui.taxes_window", fromlist=["TaxesWindow"])
+            .TaxesWindow(main_window=self),
+            singleton=True,
+        ))
+        self.tabs_manager.register(TabSpec(
+            key="expense_articles",
+            title="Статьи расходов",
+            factory=lambda: __import__("ui.expense_articles_window", fromlist=["ExpenseArticlesWindow"])
+            .ExpenseArticlesWindow(main_window=self),
+            singleton=True,
+        ))
 
     # =========================================================
     # CONNECT
     # =========================================================
 
     def _connect_actions(self) -> None:
-        self.documents_action.triggered.connect(lambda: self.tabs_manager.open("documents"))
-        self.directories_action.triggered.connect(lambda: self.tabs_manager.open("directories"))
+        self.back_action.triggered.connect(self.on_back)
+
+        self.documents_action.triggered.connect(lambda: self.tabs_manager.open("documents_hub"))
         self.archive_action.triggered.connect(lambda: self.tabs_manager.open("archive"))
         self.settings_action.triggered.connect(self.open_settings)
         self.refresh_action.triggered.connect(self.refresh_current_tab)
+
+        # "Справочники" -> меню выбора
+        self.directories_action.triggered.connect(self.open_directories_menu)
+
+        # sidebar buttons
+        self.sidebar.btn_documents.clicked.connect(lambda: self.tabs_manager.open("documents_hub"))
+        self.sidebar.btn_archive.clicked.connect(lambda: self.tabs_manager.open("archive"))
+        self.sidebar.btn_settings.clicked.connect(self.open_settings)
+
+        # в сайдбаре "Организация" и "Контрагенты" оставлены как быстрые входы
+        self.sidebar.btn_org.clicked.connect(lambda: self.tabs_manager.open("org"))
+        self.sidebar.btn_contagents.clicked.connect(lambda: self.tabs_manager.open("contagents"))
+
+    # =========================================================
+    # DIRECTORIES MENU
+    # =========================================================
+
+    def open_directories_menu(self) -> None:
+        menu = QMenu(self)
+
+        a_org = menu.addAction("Организация")
+        a_cont = menu.addAction("Контрагенты")
+        menu.addSeparator()
+        a_banks = menu.addAction("Банки")
+        a_taxes = menu.addAction("Налоги")
+        a_exp = menu.addAction("Статьи расходов")
+
+        act = menu.exec(self.mapToGlobal(QPoint(80, 60)))
+        if act is None:
+            return
+
+        if act == a_org:
+            self.tabs_manager.open("org")
+        elif act == a_cont:
+            self.tabs_manager.open("contagents")
+        elif act == a_banks:
+            self.tabs_manager.open("banks")
+        elif act == a_taxes:
+            self.tabs_manager.open("taxes")
+        elif act == a_exp:
+            self.tabs_manager.open("expense_articles")
+
+    # =========================================================
+    # SIDEBAR
+    # =========================================================
+
+    def set_sidebar_visible(self, visible: bool, animate: bool = True) -> None:
+        # простое скрытие без сложной анимации (стабильно)
+        self.sidebar.setVisible(visible)
 
     # =========================================================
     # STATUS
@@ -138,7 +233,6 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 self.show_message(str(e), "error", 6000)
         else:
-            # ничего обновлять
             self.show_message("Эту вкладку обновлять не нужно", "info", 1500)
 
     # =========================================================

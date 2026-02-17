@@ -129,3 +129,23 @@ def search_banks(query: str) -> list[Bank]:
         return q.order_by(Bank.name).all()
     finally:
         session.close()
+
+
+def filter_banks(filters: dict[str, Any]) -> list[Bank]:
+    """Фильтр (как в 1С). Поддерживает: name, country, bik, swift."""
+    session = db.get_session()
+    try:
+        q = session.query(Bank).filter(Bank.is_deleted == False)
+        if filters.get("name"):
+            low = str(filters["name"]).lower()
+            q = q.filter(func.lower(Bank.name).like(f"%{low}%"))
+        if filters.get("country"):
+            q = q.filter(Bank.country == filters["country"])
+        if filters.get("bik"):
+            q = q.filter(func.coalesce(Bank.bik, "").like(f"%{filters['bik']}%"))
+        if filters.get("swift"):
+            low = str(filters["swift"]).lower()
+            q = q.filter(func.lower(func.coalesce(Bank.swift, "")).like(f"%{low}%"))
+        return q.order_by(Bank.name).all()
+    finally:
+        session.close()

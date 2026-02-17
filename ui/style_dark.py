@@ -67,6 +67,20 @@ QTabBar::close-button:hover {
     border-radius: 6px;
 }
 
+
+
+/* Filter panel (1C) */
+#FilterPanel {
+    background: #232a37;
+    border: 1px solid #314056;
+    border-radius: 12px;
+}
+#FilterLabel {
+    background: transparent;
+    color: #e8eef7;
+    font-weight: 700;
+}
+
 /* Inputs */
 QLineEdit, QComboBox, QDateEdit, QTextEdit {
     background: #1f2635;

@@ -130,3 +130,19 @@ def search_expense_articles(query: str) -> list[ExpenseArticle]:
         return q.order_by(ExpenseArticle.name).all()
     finally:
         session.close()
+
+
+def filter_expense_articles(filters: dict[str, Any]) -> list[ExpenseArticle]:
+    """Фильтр (как в 1С). Поддерживает: name, group_name."""
+    session = db.get_session()
+    try:
+        q = session.query(ExpenseArticle).filter(ExpenseArticle.is_deleted == False)
+        if filters.get("name"):
+            low = str(filters["name"]).lower()
+            q = q.filter(func.lower(ExpenseArticle.name).like(f"%{low}%"))
+        if filters.get("group_name"):
+            low = str(filters["group_name"]).lower()
+            q = q.filter(func.lower(func.coalesce(ExpenseArticle.group_name, "")).like(f"%{low}%"))
+        return q.order_by(ExpenseArticle.name).all()
+    finally:
+        session.close()

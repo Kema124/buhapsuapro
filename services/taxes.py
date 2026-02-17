@@ -128,3 +128,18 @@ def search_taxes(query: str) -> list[Tax]:
         return q.order_by(Tax.name).all()
     finally:
         session.close()
+
+
+def filter_taxes(filters: dict[str, Any]) -> list[Tax]:
+    """Фильтр (как в 1С). Поддерживает: name, kbk."""
+    session = db.get_session()
+    try:
+        q = session.query(Tax).filter(Tax.is_deleted == False)
+        if filters.get("name"):
+            low = str(filters["name"]).lower()
+            q = q.filter(func.lower(Tax.name).like(f"%{low}%"))
+        if filters.get("kbk"):
+            q = q.filter(func.coalesce(Tax.kbk, "").like(f"%{filters['kbk']}%"))
+        return q.order_by(Tax.name).all()
+    finally:
+        session.close()
