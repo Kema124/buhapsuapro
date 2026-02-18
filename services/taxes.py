@@ -130,16 +130,19 @@ def search_taxes(query: str) -> list[Tax]:
         session.close()
 
 
-def filter_taxes(filters: dict[str, Any]) -> list[Tax]:
-    """Фильтр (как в 1С). Поддерживает: name, kbk."""
+# ------------------------
+# FILTER (УТ-отбор)
+# ------------------------
+def filter_taxes_ut(spec: dict[str, Any]) -> list[Tax]:
+    """
+    spec = {"type":"group","op":"AND|OR","items":[...]}
+    """
+    from services.ut_filtering import apply_ut_filter
+
     session = db.get_session()
     try:
         q = session.query(Tax).filter(Tax.is_deleted == False)
-        if filters.get("name"):
-            low = str(filters["name"]).lower()
-            q = q.filter(func.lower(Tax.name).like(f"%{low}%"))
-        if filters.get("kbk"):
-            q = q.filter(func.coalesce(Tax.kbk, "").like(f"%{filters['kbk']}%"))
+        q = apply_ut_filter(q, Tax, spec)
         return q.order_by(Tax.name).all()
     finally:
         session.close()

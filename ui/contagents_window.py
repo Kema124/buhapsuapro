@@ -5,7 +5,7 @@ from typing import Any
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTableWidget, QTableWidgetItem,
-    QLineEdit, QComboBox, QMenu,
+    QLineEdit, QMenu,
     QAbstractItemView, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QTimer
@@ -16,8 +16,11 @@ from ui.theme_manager import ThemeManager
 from services.contagents import (
     get_all_contagents,
     search_contagents,
-    soft_delete_contagent
+    soft_delete_contagent,
+    filter_contagents_ut,
 )
+
+from ui.ut_filter_panel import UTFilterPanel, FilterField
 
 
 class ContagentsWindow(QWidget):
@@ -46,6 +49,10 @@ class ContagentsWindow(QWidget):
         ThemeManager.unsubscribe(self._on_theme_changed)
         super().closeEvent(event)
 
+    # =========================================================
+    # helpers
+    # =========================================================
+
     def _msg(self, text: str, kind: str = "info", timeout: int = 3000):
         if self.main_window:
             self.main_window.show_message(text, kind, timeout)
@@ -65,13 +72,19 @@ class ContagentsWindow(QWidget):
         self._theme = theme
         self.apply_icons()
 
+    # =========================================================
+    # UI
+    # =========================================================
+
     def _init_ui(self) -> None:
         self.main_layout = QVBoxLayout(self)
 
         # search
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Поиск: имя, ИНН, КПП, адрес, телефон, email. Пример: inn:12345678")
+        self.search_input.setPlaceholderText(
+            "Поиск: имя, ИНН, КПП, адрес, телефон, email. Пример: inn:12345678"
+        )
         self.search_input.textChanged.connect(self.on_search)
         search_layout.addWidget(self.search_input)
         self.main_layout.addLayout(search_layout)
@@ -98,38 +111,31 @@ class ContagentsWindow(QWidget):
         self.copy_btn.clicked.connect(self.copy_contagent)
         self.delete_btn.clicked.connect(self.soft_delete_selected)
 
-        # filter panel (1C)
-        from ui.one_c_filter import OneCFilterPanel, FilterField
-
-        self.filter_panel = OneCFilterPanel([
-            FilterField("name", "Название", placeholder=""),
-            FilterField("inn", "ИНН", placeholder=""),
-            FilterField("role", "Роль", kind="combo", items=[
-                ("Все", None),
+        # УТ-фильтр (Отбор) — единственный фильтр (старый удалён)
+        self.filter_panel = UTFilterPanel(fields=[
+            FilterField("name", "Название", "str"),
+            FilterField("inn", "ИНН", "str"),
+            FilterField("kpp", "КПП", "str"),
+            FilterField("role", "Роль", "enum", choices=[
                 ("Покупатель", "buyer"),
                 ("Поставщик", "supplier"),
                 ("Оба", "both"),
             ]),
-            FilterField("organization_type", "Тип", kind="combo", items=[
-                ("Все", None),
+            FilterField("organization_type", "Тип", "enum", choices=[
                 ("Юр. лицо", "company"),
                 ("ИП", "ip"),
                 ("Физ. лицо", "person"),
             ]),
-            FilterField("is_active", "Активность", kind="combo", items=[
-                ("Все", None),
-                ("Активные", True),
-                ("Неактивные", False),
+            FilterField("is_active", "Активен", "bool", choices=[
+                ("Да", True),
+                ("Нет", False),
             ]),
         ])
-        self.filter_panel.setObjectName("FilterPanel")
-        self.filter_panel.applied.connect(self._on_filter_applied)
-        self.filter_panel.reset.connect(self._on_filter_reset)
-
-        self.filter_panel.setVisible(False)
+        self.filter_panel.applied.connect(self._apply_ut_filter)
+        self.filter_panel.reset.connect(self._reset_ut_filter)
         self.main_layout.addWidget(self.filter_panel)
 
-# table
+        # table
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["ID", "Роль", "Название", "ИНН", "КПП", "Тип"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -146,7 +152,10 @@ class ContagentsWindow(QWidget):
         self.table.keyPressEvent = self._table_key_press  # type: ignore[assignment]
         self.main_layout.addWidget(self.table)
 
+    # =========================================================
     # data
+    # =========================================================
+
     def load_data(self) -> None:
         self._fill_table(get_all_contagents())
 
@@ -168,7 +177,10 @@ class ContagentsWindow(QWidget):
             self.table.setItem(row, 4, QTableWidgetItem(c.kpp or ""))
             self.table.setItem(row, 5, QTableWidgetItem(org_text))
 
+    # =========================================================
     # selection
+    # =========================================================
+
     def get_selected_id(self) -> int | None:
         row = self.table.currentRow()
         if row < 0:
@@ -196,7 +208,10 @@ class ContagentsWindow(QWidget):
                 pass
         return out
 
+    # =========================================================
     # CRUD
+    # =========================================================
+
     def add_contagent(self) -> None:
         from ui.contagent_form import ContagentForm
         dlg = ContagentForm(mode="create", on_saved=self._after_change, main_window=self.main_window)
@@ -241,30 +256,41 @@ class ContagentsWindow(QWidget):
         self._after_change()
         self._msg(f"Перемещено в архив: {len(ids)}", "success", 3000)
 
-    # search/filter
+    # =========================================================
+    # search
+    # =========================================================
+
     def on_search(self, _text: str) -> None:
         # debounce 220ms
         self._search_timer.start(220)
 
     def _do_search(self) -> None:
         text = self.search_input.text().strip()
+        if not text:
+            self.load_data()
+            return
         self._fill_table(search_contagents(text))
 
+    # =========================================================
+    # UT filter
+    # =========================================================
+
     def toggle_filter(self) -> None:
-        self.filter_panel.setVisible(not self.filter_panel.isVisible())
+        self.filter_panel.toggle()
 
-    def _on_filter_applied(self, filters: dict) -> None:
-        from services.contagents import filter_contagents
-        self._fill_table(filter_contagents(filters))
+    def _apply_ut_filter(self, spec: dict) -> None:
+        try:
+            self._fill_table(filter_contagents_ut(spec))
+        except Exception as e:
+            self._msg(str(e), "error", 5000)
 
-    def _on_filter_reset(self) -> None:
+    def _reset_ut_filter(self) -> None:
         self.load_data()
 
-    def reset_filter(self) -> None:
-        # совместимость (если где-то вызывается)
-        self._on_filter_reset()
-
+    # =========================================================
     # misc
+    # =========================================================
+
     def _after_change(self) -> None:
         self.load_data()
         self.data_changed.emit()
@@ -274,6 +300,10 @@ class ContagentsWindow(QWidget):
             self.soft_delete_selected()
         else:
             QTableWidget.keyPressEvent(self.table, event)
+
+    # =========================================================
+    # context menu
+    # =========================================================
 
     def _open_context_menu(self, pos: QPoint) -> None:
         menu = QMenu(self)
@@ -285,6 +315,22 @@ class ContagentsWindow(QWidget):
         a_arch = menu.addAction("В архив")
         menu.addSeparator()
         a_refresh = menu.addAction("Обновить")
+
+        # отбор по значению (как в 1С)
+        idx = self.table.indexAt(pos)
+        cell_value: str | None = None
+        col: int | None = None
+        if idx.isValid():
+            col = idx.column()
+            it = self.table.item(idx.row(), idx.column())
+            cell_value = it.text() if it else None
+
+        a_filter_eq = None
+        a_filter_neq = None
+        if cell_value:
+            menu.addSeparator()
+            a_filter_eq = menu.addAction(f"Отбор: равно '{cell_value}'")
+            a_filter_neq = menu.addAction(f"Отбор: не равно '{cell_value}'")
 
         chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
         if chosen is None:
@@ -301,3 +347,42 @@ class ContagentsWindow(QWidget):
         elif chosen == a_refresh:
             self.load_data()
             self._msg("Обновлено", "success", 1500)
+        elif a_filter_eq is not None and chosen == a_filter_eq:
+            self._apply_filter_from_cell(col, cell_value, negate=False)
+        elif a_filter_neq is not None and chosen == a_filter_neq:
+            self._apply_filter_from_cell(col, cell_value, negate=True)
+
+    def _apply_filter_from_cell(self, col: int | None, value: str | None, negate: bool) -> None:
+        if col is None or value is None:
+            return
+
+        # Колонки: 0 ID, 1 Роль, 2 Название, 3 ИНН, 4 КПП, 5 Тип
+        field_by_col = {
+            1: "role",
+            2: "name",
+            3: "inn",
+            4: "kpp",
+            5: "organization_type",
+        }
+        field = field_by_col.get(col)
+        if not field:
+            return
+
+        # Для enum/bool — eq/neq, для строк — contains/not_contains
+        if field in ("role", "organization_type"):
+            # преобразуем отображаемый текст в код
+            if field == "role":
+                mapping = {"Покупатель": "buyer", "Поставщик": "supplier", "Оба": "both"}
+                v = mapping.get(value, value)
+            else:
+                mapping = {"Юр. лицо": "company", "ИП": "ip", "Физ. лицо": "person"}
+                v = mapping.get(value, value)
+
+            cmp_key = "neq" if negate else "eq"
+            self.filter_panel.add_condition_from_value(field, cmp_key, v)
+        else:
+            cmp_key = "not_contains" if negate else "contains"
+            self.filter_panel.add_condition_from_value(field, cmp_key, value)
+
+        # сразу применим (как в 1С обычно)
+        self._apply_ut_filter(self.filter_panel.get_filter_spec())

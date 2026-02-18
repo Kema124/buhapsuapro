@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 LIGHT_QSS = """
 QMainWindow { background: #f4f6f9; }
 QWidget { background: #f4f6f9; color: #1f2d3d; }
@@ -10,9 +12,6 @@ QToolBar {
     padding: 6px;
 }
 QToolBar * { color: white; }
-QToolBar QWidget { background: transparent; }
-QToolBar QToolButton { background: transparent; }
-
 
 QToolButton {
     background: transparent;
@@ -70,20 +69,6 @@ QTabBar::close-button:hover {
     border-radius: 6px;
 }
 
-
-
-/* Filter panel (1C) */
-#FilterPanel {
-    background: #ffffff;
-    border: 1px solid #dbe2ef;
-    border-radius: 12px;
-}
-#FilterLabel {
-    background: transparent;
-    color: #22324a;
-    font-weight: 700;
-}
-
 /* Inputs */
 QLineEdit, QComboBox, QDateEdit, QTextEdit {
     background: #ffffff;
@@ -127,4 +112,24 @@ QPushButton:pressed { background: #17305c; }
 
 /* StatusBar */
 QStatusBar { background: #1f3c73; color: white; font-weight: 800; }
+
+/* ===== UT Filter Panel ===== */
+#UTFilterPanel { border: 1px solid #d6dde7; border-radius: 10px; }
+#UTFilterTitle { font-size: 14px; font-weight: 700; color: #1b2a40; }
+#UTFilterBody {
+    background: #f7f9fc;
+    border-top: 1px solid #d6dde7;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+#UTFilterTree {
+    background: white;
+    border: 1px solid #d6dde7;
+    border-radius: 8px;
+}
+#UTFilterTree::item:hover { background: #eaf2ff; }
+#UTFilterAdd, #UTFilterAddGroup { padding: 6px 10px; border-radius: 8px; }
+#UTFilterApply { padding: 7px 14px; border-radius: 8px; font-weight: 700; }
+#UTFilterReset { padding: 7px 14px; border-radius: 8px; }
+#UTFilterRemove { border-radius: 6px; padding: 2px 0; }
 """

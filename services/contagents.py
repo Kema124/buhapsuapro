@@ -184,3 +184,21 @@ def search_contagents(query: str) -> list[Contagent]:
         return q.order_by(Contagent.name).all()
     finally:
         session.close()
+
+
+# ------------------------
+# FILTER (УТ-отбор)
+# ------------------------
+def filter_contagents_ut(spec: dict[str, Any]) -> list[Contagent]:
+    """
+    spec = {"type":"group","op":"AND|OR","items":[...]} from ui.ut_filter_panel.UTFilterPanel
+    """
+    from services.ut_filtering import apply_ut_filter
+
+    session = db.get_session()
+    try:
+        q = session.query(Contagent).filter(Contagent.is_deleted == False)
+        q = apply_ut_filter(q, Contagent, spec)
+        return q.order_by(Contagent.name).all()
+    finally:
+        session.close()

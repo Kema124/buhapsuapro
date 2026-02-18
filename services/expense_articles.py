@@ -132,17 +132,19 @@ def search_expense_articles(query: str) -> list[ExpenseArticle]:
         session.close()
 
 
-def filter_expense_articles(filters: dict[str, Any]) -> list[ExpenseArticle]:
-    """Фильтр (как в 1С). Поддерживает: name, group_name."""
+# ------------------------
+# FILTER (УТ-отбор)
+# ------------------------
+def filter_expensearticles_ut(spec: dict[str, Any]) -> list[ExpenseArticle]:
+    """
+    spec = {"type":"group","op":"AND|OR","items":[...]}
+    """
+    from services.ut_filtering import apply_ut_filter
+
     session = db.get_session()
     try:
         q = session.query(ExpenseArticle).filter(ExpenseArticle.is_deleted == False)
-        if filters.get("name"):
-            low = str(filters["name"]).lower()
-            q = q.filter(func.lower(ExpenseArticle.name).like(f"%{low}%"))
-        if filters.get("group_name"):
-            low = str(filters["group_name"]).lower()
-            q = q.filter(func.lower(func.coalesce(ExpenseArticle.group_name, "")).like(f"%{low}%"))
+        q = apply_ut_filter(q, ExpenseArticle, spec)
         return q.order_by(ExpenseArticle.name).all()
     finally:
         session.close()

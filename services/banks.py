@@ -131,21 +131,19 @@ def search_banks(query: str) -> list[Bank]:
         session.close()
 
 
-def filter_banks(filters: dict[str, Any]) -> list[Bank]:
-    """Фильтр (как в 1С). Поддерживает: name, country, bik, swift."""
+# ------------------------
+# FILTER (УТ-отбор)
+# ------------------------
+def filter_banks_ut(spec: dict[str, Any]) -> list[Bank]:
+    """
+    spec = {"type":"group","op":"AND|OR","items":[...]}
+    """
+    from services.ut_filtering import apply_ut_filter
+
     session = db.get_session()
     try:
         q = session.query(Bank).filter(Bank.is_deleted == False)
-        if filters.get("name"):
-            low = str(filters["name"]).lower()
-            q = q.filter(func.lower(Bank.name).like(f"%{low}%"))
-        if filters.get("country"):
-            q = q.filter(Bank.country == filters["country"])
-        if filters.get("bik"):
-            q = q.filter(func.coalesce(Bank.bik, "").like(f"%{filters['bik']}%"))
-        if filters.get("swift"):
-            low = str(filters["swift"]).lower()
-            q = q.filter(func.lower(func.coalesce(Bank.swift, "")).like(f"%{low}%"))
+        q = apply_ut_filter(q, Bank, spec)
         return q.order_by(Bank.name).all()
     finally:
         session.close()
