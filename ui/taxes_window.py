@@ -162,8 +162,10 @@ class TaxesWindow(QWidget):
             it_id.setData(Qt.ItemDataRole.UserRole, tid if tid is not None else 0)
             self.table.setItem(r, 0, it_id)
 
-            self.table.setItem(r, 1, QTableWidgetItem(title.get(t.tax_type, t.tax_type)))
-            self.table.setItem(r, 2, QTableWidgetItem(t.name))
+            key = (t.tax_type or "")
+            tax_label = title.get(key, key)
+            self.table.setItem(r, 1, QTableWidgetItem(str(tax_label)))
+            self.table.setItem(r, 2, QTableWidgetItem(str(getattr(t, "name", "") or "")))
             self.table.setItem(r, 3, QTableWidgetItem(t.rate or ""))
             self.table.setItem(r, 4, QTableWidgetItem(t.kbk or ""))
 

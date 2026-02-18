@@ -13,10 +13,11 @@ from ui.assets import load_icon
 from ui.theme_manager import ThemeManager
 from ui.ut_filter_panel import UTFilterPanel, FilterField
 
-from services.expense_articles import (, filter_expensearticles_ut
+from services.expense_articles import (
     get_all_expense_articles,
     search_expense_articles,
     soft_delete_expense_article,
+    filter_expensearticles_ut,
 )
 
 
@@ -82,7 +83,7 @@ class ExpenseArticlesWindow(QWidget):
         self.filter_panel.reset.connect(self._reset_ut_filter)
         lay.addWidget(self.filter_panel)
 
-self.table = QTableWidget(0, 4)
+        self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["ID", "Наименование", "Группа", "Активна"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -116,7 +117,7 @@ self.table = QTableWidget(0, 4)
     def _reset_ut_filter(self) -> None:
         self.load_data()
 
-def load_data(self):
+    def load_data(self):
         self._fill(get_all_expense_articles())
 
     def _fill(self, items):
@@ -126,7 +127,7 @@ def load_data(self):
             it_id = QTableWidgetItem(str(a.id))
             it_id.setData(Qt.ItemDataRole.UserRole, int(a.id))
             self.table.setItem(r, 0, it_id)
-            self.table.setItem(r, 1, QTableWidgetItem(a.name))
+            self.table.setItem(r, 1, QTableWidgetItem(str(getattr(a, "name", "") or "")))
             self.table.setItem(r, 2, QTableWidgetItem(a.group or ""))
             self.table.setItem(r, 3, QTableWidgetItem("Да" if a.is_active else "Нет"))
 

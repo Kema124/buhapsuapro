@@ -59,7 +59,7 @@ class ArchiveExpenseArticlesTab(QWidget):
             it_id = QTableWidgetItem(str(a.id))
             it_id.setData(Qt.ItemDataRole.UserRole, int(a.id))
             self.table.setItem(r, 0, it_id)
-            self.table.setItem(r, 1, QTableWidgetItem(a.name))
+            self.table.setItem(r, 1, QTableWidgetItem(str(getattr(a, "name", "") or "")))
             self.table.setItem(r, 2, QTableWidgetItem(a.group_name or ""))
             self.table.setItem(r, 3, QTableWidgetItem(a.note or ""))
 

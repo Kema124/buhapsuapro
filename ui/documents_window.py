@@ -203,9 +203,10 @@ class DocumentsWindow(QWidget):
 
             table.setItem(r, 1, QTableWidgetItem(c.number))
             table.setItem(r, 2, QTableWidgetItem(str(c.date)))
-            table.setItem(r, 3, QTableWidgetItem(c.contagent.name if c.contagent else ""))
+            table.setItem(r, 3, QTableWidgetItem(str((c.contagent.name if (c.contagent and getattr(c.contagent, "name", None) is not None) else ""))))
             table.setItem(r, 4, QTableWidgetItem("" if c.sum is None else str(c.sum)))
-            table.setItem(r, 5, QTableWidgetItem(STATUS_LABELS.get(c.status, c.status)))
+            status_label = STATUS_LABELS.get(c.status, c.status) or ""
+            table.setItem(r, 5, QTableWidgetItem(str(status_label)))
 
     def selected_ids(self) -> list[int]:
         table = self.current_table()

@@ -67,9 +67,10 @@ class ArchiveContractsTab(QWidget):
 
             self.table.setItem(r, 1, QTableWidgetItem(c.number))
             self.table.setItem(r, 2, QTableWidgetItem(str(c.date)))
-            self.table.setItem(r, 3, QTableWidgetItem(c.contagent.name if c.contagent else ""))
+            self.table.setItem(r, 3, QTableWidgetItem(str((c.contagent.name if (c.contagent and getattr(c.contagent, "name", None) is not None) else ""))))
             self.table.setItem(r, 4, QTableWidgetItem("" if c.sum is None else str(c.sum)))
-            self.table.setItem(r, 5, QTableWidgetItem(STATUS_TITLES.get(c.status, c.status)))
+            status_label = STATUS_TITLES.get(c.status, c.status) or ""
+            self.table.setItem(r, 5, QTableWidgetItem(str(status_label)))
 
     def selected_ids(self) -> list[int]:
         rows = {it.row() for it in self.table.selectedItems()}

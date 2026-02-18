@@ -59,7 +59,7 @@ class ArchiveTaxesTab(QWidget):
             it_id = QTableWidgetItem(str(t.id))
             it_id.setData(Qt.ItemDataRole.UserRole, int(t.id))
             self.table.setItem(r, 0, it_id)
-            self.table.setItem(r, 1, QTableWidgetItem(t.name))
+            self.table.setItem(r, 1, QTableWidgetItem(str(getattr(t, "name", "") or "")))
             self.table.setItem(r, 2, QTableWidgetItem("" if t.rate is None else str(t.rate)))
             self.table.setItem(r, 3, QTableWidgetItem(t.kbk or ""))
             self.table.setItem(r, 4, QTableWidgetItem(t.note or ""))

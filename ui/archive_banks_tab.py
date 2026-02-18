@@ -60,7 +60,7 @@ class ArchiveBanksTab(QWidget):
             it_id.setData(Qt.ItemDataRole.UserRole, int(b.id))
             self.table.setItem(r, 0, it_id)
             self.table.setItem(r, 1, QTableWidgetItem("Россия" if b.country == "RU" else "Абхазия"))
-            self.table.setItem(r, 2, QTableWidgetItem(b.name))
+            self.table.setItem(r, 2, QTableWidgetItem(str(getattr(b, "name", "") or "")))
             self.table.setItem(r, 3, QTableWidgetItem(b.bik or ""))
             self.table.setItem(r, 4, QTableWidgetItem(b.swift or ""))
 

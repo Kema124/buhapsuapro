@@ -172,7 +172,7 @@ class ContagentsWindow(QWidget):
             org_text = "Юр. лицо" if c.organization_type == "company" else ("ИП" if c.organization_type == "ip" else "Физ. лицо")
 
             self.table.setItem(row, 1, QTableWidgetItem(role_text))
-            self.table.setItem(row, 2, QTableWidgetItem(c.name))
+            self.table.setItem(row, 2, QTableWidgetItem(str(getattr(c, "name", "") or "")))
             self.table.setItem(row, 3, QTableWidgetItem(c.inn or ""))
             self.table.setItem(row, 4, QTableWidgetItem(c.kpp or ""))
             self.table.setItem(row, 5, QTableWidgetItem(org_text))
