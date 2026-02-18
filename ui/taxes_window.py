@@ -25,11 +25,11 @@ class TaxesWindow(QWidget):
         self.setWindowTitle("Налоги")
         self.resize(1000, 550)
 
-        self._init_ui()
-
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._do_search)
+
+        self._init_ui()
 
         ThemeManager.subscribe(self._on_theme_changed)
         self.apply_icons()
@@ -39,6 +39,22 @@ class TaxesWindow(QWidget):
     def closeEvent(self, event):
         ThemeManager.unsubscribe(self._on_theme_changed)
         super().closeEvent(event)
+
+    # ---------------------------------------------------------
+    # helpers
+    # ---------------------------------------------------------
+
+    def _safe_int(self, value: Any) -> int | None:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except Exception:
+            return None
+
+    # ---------------------------------------------------------
+    # UI
+    # ---------------------------------------------------------
 
     def _init_ui(self):
         lay = QVBoxLayout(self)
@@ -67,7 +83,6 @@ class TaxesWindow(QWidget):
         self.btn_copy.clicked.connect(self.copy_item)
         self.btn_del.clicked.connect(self.archive_selected)
 
-        
         # УТ-фильтр (Отбор)
         self.filter_panel = UTFilterPanel(fields=[
             FilterField("name", "Наименование", "str"),
@@ -86,18 +101,23 @@ class TaxesWindow(QWidget):
         self.filter_panel.reset.connect(self._reset_ut_filter)
         lay.addWidget(self.filter_panel)
 
-self.table = QTableWidget(0, 5)
+        # --- TABLE (исправлен отступ) ---
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["ID", "Вид", "Наименование", "Ставка", "КБК"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setStretchLastSection(True)
+
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._menu)
-
         self.table.doubleClicked.connect(self.edit_item)
 
         lay.addWidget(self.table)
+
+    # ---------------------------------------------------------
+    # theme / icons
+    # ---------------------------------------------------------
 
     def apply_icons(self):
         c = "#ffffff" if self._theme == "dark" else "#22324a"
@@ -110,31 +130,46 @@ self.table = QTableWidget(0, 5)
         self._theme = theme
         self.apply_icons()
 
-    
+    # ---------------------------------------------------------
+    # filter
+    # ---------------------------------------------------------
+
     def toggle_filter(self) -> None:
         self.filter_panel.toggle()
 
     def _apply_ut_filter(self, spec: dict) -> None:
-        self._fill_table(filter_taxes_ut(spec))
+        self._fill(filter_taxes_ut(spec))
 
     def _reset_ut_filter(self) -> None:
         self.load_data()
 
-def load_data(self):
+    # ---------------------------------------------------------
+    # data
+    # ---------------------------------------------------------
+
+    def load_data(self):
         self._fill(get_all_taxes())
 
     def _fill(self, items):
         self.table.setRowCount(0)
-        title = {"tax":"Налог","fee":"Сбор","contribution":"Взнос","duty":"Пошлина"}
+        title = {"tax": "Налог", "fee": "Сбор", "contribution": "Взнос", "duty": "Пошлина"}
+
         for r, t in enumerate(items):
             self.table.insertRow(r)
-            it_id = QTableWidgetItem(str(t.id))
-            it_id.setData(Qt.ItemDataRole.UserRole, int(t.id))
+
+            it_id = QTableWidgetItem(str(getattr(t, "id", "")))
+            tid = self._safe_int(getattr(t, "id", None))
+            it_id.setData(Qt.ItemDataRole.UserRole, tid if tid is not None else 0)
             self.table.setItem(r, 0, it_id)
+
             self.table.setItem(r, 1, QTableWidgetItem(title.get(t.tax_type, t.tax_type)))
             self.table.setItem(r, 2, QTableWidgetItem(t.name))
             self.table.setItem(r, 3, QTableWidgetItem(t.rate or ""))
             self.table.setItem(r, 4, QTableWidgetItem(t.kbk or ""))
+
+    # ---------------------------------------------------------
+    # selection
+    # ---------------------------------------------------------
 
     def _selected_ids(self) -> list[int]:
         rows = {it.row() for it in self.table.selectedItems()}
@@ -144,21 +179,26 @@ def load_data(self):
             if item is None:
                 continue
             val: Any = item.data(Qt.ItemDataRole.UserRole)
-            if val is None:
-                continue
-            try:
-                ids.append(int(val))
-            except Exception:
-                pass
+            tid = self._safe_int(val)
+            if tid is not None:
+                ids.append(tid)
         return ids
 
     def _selected_id(self) -> int | None:
         ids = self._selected_ids()
         return ids[0] if ids else None
 
+    # ---------------------------------------------------------
+    # search
+    # ---------------------------------------------------------
+
     def _do_search(self):
         q = self.search.text().strip()
         self._fill(search_taxes(q) if q else get_all_taxes())
+
+    # ---------------------------------------------------------
+    # context menu
+    # ---------------------------------------------------------
 
     def _menu(self, pos: QPoint):
         menu = QMenu(self)
@@ -177,6 +217,10 @@ def load_data(self):
             self.copy_item()
         elif act == a_arch:
             self.archive_selected()
+
+    # ---------------------------------------------------------
+    # actions
+    # ---------------------------------------------------------
 
     def add_item(self):
         from ui.tax_form import TaxForm
@@ -209,12 +253,14 @@ def load_data(self):
             if self.main_window:
                 self.main_window.show_message("Выберите записи", "warning", 3000)
             return
+
         for i in ids:
             try:
                 soft_delete_tax(i)
             except Exception as e:
                 if self.main_window:
                     self.main_window.show_message(str(e), "error", 6000)
+
         self.load_data()
         if self.main_window:
             self.main_window.show_message(f"Перемещено в архив: {len(ids)}", "success", 3000)

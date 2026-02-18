@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem,
     QLineEdit, QMenu, QAbstractItemView
 )
-from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtCore import Qt, QTimer, QPoint, Signal
 
 from ui.assets import load_icon
 from ui.theme_manager import ThemeManager
@@ -17,6 +17,8 @@ from services.banks import get_all_banks, search_banks, soft_delete_bank, filter
 
 
 class BanksWindow(QWidget):
+    data_changed = Signal()
+
     def __init__(self, main_window=None):
         super().__init__()
         self.main_window = main_window
@@ -25,11 +27,11 @@ class BanksWindow(QWidget):
         self.setWindowTitle("Банки")
         self.resize(1000, 550)
 
-        self._init_ui()
-
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._do_search)
+
+        self._init_ui()
 
         ThemeManager.subscribe(self._on_theme_changed)
         self.apply_icons()
@@ -39,6 +41,26 @@ class BanksWindow(QWidget):
     def closeEvent(self, event):
         ThemeManager.unsubscribe(self._on_theme_changed)
         super().closeEvent(event)
+
+    # ---------------------------------------------------------
+    # helpers
+    # ---------------------------------------------------------
+
+    def _safe_int(self, value: Any) -> int | None:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except Exception:
+            return None
+
+    def _msg(self, text: str, kind: str = "info", timeout: int = 3000) -> None:
+        if self.main_window:
+            self.main_window.show_message(text, kind, timeout)
+
+    # ---------------------------------------------------------
+    # UI
+    # ---------------------------------------------------------
 
     def _init_ui(self):
         lay = QVBoxLayout(self)
@@ -67,7 +89,6 @@ class BanksWindow(QWidget):
         self.btn_copy.clicked.connect(self.copy_item)
         self.btn_del.clicked.connect(self.archive_selected)
 
-        
         # УТ-фильтр (Отбор)
         self.filter_panel = UTFilterPanel(fields=[
             FilterField("name", "Название", "str"),
@@ -86,18 +107,22 @@ class BanksWindow(QWidget):
         self.filter_panel.reset.connect(self._reset_ut_filter)
         lay.addWidget(self.filter_panel)
 
-self.table = QTableWidget(0, 5)
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["ID", "Страна", "Наименование", "БИК", "SWIFT"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setStretchLastSection(True)
+
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._menu)
-
         self.table.doubleClicked.connect(self.edit_item)
 
         lay.addWidget(self.table)
+
+    # ---------------------------------------------------------
+    # theme / icons
+    # ---------------------------------------------------------
 
     def apply_icons(self):
         c = "#ffffff" if self._theme == "dark" else "#22324a"
@@ -110,30 +135,45 @@ self.table = QTableWidget(0, 5)
         self._theme = theme
         self.apply_icons()
 
-    
+    # ---------------------------------------------------------
+    # filter
+    # ---------------------------------------------------------
+
     def toggle_filter(self) -> None:
         self.filter_panel.toggle()
 
     def _apply_ut_filter(self, spec: dict) -> None:
-        self._fill_table(filter_banks_ut(spec))
+        self._fill(filter_banks_ut(spec))
 
     def _reset_ut_filter(self) -> None:
         self.load_data()
 
-def load_data(self):
+    # ---------------------------------------------------------
+    # data
+    # ---------------------------------------------------------
+
+    def load_data(self):
         self._fill(get_all_banks())
 
     def _fill(self, items):
         self.table.setRowCount(0)
         for r, b in enumerate(items):
             self.table.insertRow(r)
-            it_id = QTableWidgetItem(str(b.id))
-            it_id.setData(Qt.ItemDataRole.UserRole, int(b.id))
+
+            it_id = QTableWidgetItem(str(getattr(b, "id", "")))
+            bid = self._safe_int(getattr(b, "id", None))
+            it_id.setData(Qt.ItemDataRole.UserRole, bid if bid is not None else 0)
             self.table.setItem(r, 0, it_id)
-            self.table.setItem(r, 1, QTableWidgetItem("Россия" if b.country == "RU" else "Абхазия"))
-            self.table.setItem(r, 2, QTableWidgetItem(b.name))
-            self.table.setItem(r, 3, QTableWidgetItem(b.bik or ""))
-            self.table.setItem(r, 4, QTableWidgetItem(b.swift or ""))
+
+            country = getattr(b, "country", None)
+            self.table.setItem(r, 1, QTableWidgetItem("Россия" if country == "RU" else "Абхазия"))
+            self.table.setItem(r, 2, QTableWidgetItem(getattr(b, "name", "") or ""))
+            self.table.setItem(r, 3, QTableWidgetItem(getattr(b, "bik", "") or ""))
+            self.table.setItem(r, 4, QTableWidgetItem(getattr(b, "swift", "") or ""))
+
+    # ---------------------------------------------------------
+    # selection
+    # ---------------------------------------------------------
 
     def _selected_ids(self) -> list[int]:
         rows = {it.row() for it in self.table.selectedItems()}
@@ -143,21 +183,26 @@ def load_data(self):
             if item is None:
                 continue
             val: Any = item.data(Qt.ItemDataRole.UserRole)
-            if val is None:
-                continue
-            try:
-                ids.append(int(val))
-            except Exception:
-                pass
+            cid = self._safe_int(val)
+            if cid is not None:
+                ids.append(cid)
         return ids
 
     def _selected_id(self) -> int | None:
         ids = self._selected_ids()
         return ids[0] if ids else None
 
+    # ---------------------------------------------------------
+    # search
+    # ---------------------------------------------------------
+
     def _do_search(self):
         q = self.search.text().strip()
         self._fill(search_banks(q) if q else get_all_banks())
+
+    # ---------------------------------------------------------
+    # context menu
+    # ---------------------------------------------------------
 
     def _menu(self, pos: QPoint):
         menu = QMenu(self)
@@ -177,6 +222,10 @@ def load_data(self):
         elif act == a_arch:
             self.archive_selected()
 
+    # ---------------------------------------------------------
+    # actions
+    # ---------------------------------------------------------
+
     def add_item(self):
         from ui.bank_form import BankForm
         dlg = BankForm(main_window=self.main_window, mode="create", on_saved=self.load_data)
@@ -185,8 +234,7 @@ def load_data(self):
     def edit_item(self):
         bank_id = self._selected_id()
         if bank_id is None:
-            if self.main_window:
-                self.main_window.show_message("Выберите банк", "warning", 3000)
+            self._msg("Выберите банк", "warning", 3000)
             return
         from ui.bank_form import BankForm
         dlg = BankForm(main_window=self.main_window, bank_id=bank_id, mode="edit", on_saved=self.load_data)
@@ -195,8 +243,7 @@ def load_data(self):
     def copy_item(self):
         bank_id = self._selected_id()
         if bank_id is None:
-            if self.main_window:
-                self.main_window.show_message("Выберите банк", "warning", 3000)
+            self._msg("Выберите банк", "warning", 3000)
             return
         from ui.bank_form import BankForm
         dlg = BankForm(main_window=self.main_window, bank_id=bank_id, mode="copy", on_saved=self.load_data)
@@ -205,15 +252,14 @@ def load_data(self):
     def archive_selected(self):
         ids = self._selected_ids()
         if not ids:
-            if self.main_window:
-                self.main_window.show_message("Выберите банки", "warning", 3000)
+            self._msg("Выберите банки", "warning", 3000)
             return
+
         for i in ids:
             try:
                 soft_delete_bank(i)
             except Exception as e:
-                if self.main_window:
-                    self.main_window.show_message(str(e), "error", 6000)
+                self._msg(str(e), "error", 6000)
+
         self.load_data()
-        if self.main_window:
-            self.main_window.show_message(f"Перемещено в архив: {len(ids)}", "success", 3000)
+        self._msg(f"Перемещено в архив: {len(ids)}", "success", 3000)
