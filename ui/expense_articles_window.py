@@ -72,7 +72,6 @@ class ExpenseArticlesWindow(QWidget):
         self.btn_copy.clicked.connect(self.copy_item)
         self.btn_del.clicked.connect(self.archive_selected)
 
-        
         # УТ-фильтр (Отбор)
         self.filter_panel = UTFilterPanel(fields=[
             FilterField("name", "Наименование", "str"),
@@ -107,11 +106,11 @@ class ExpenseArticlesWindow(QWidget):
         self._theme = theme
         self.apply_icons()
 
-    
     def toggle_filter(self) -> None:
         self.filter_panel.toggle()
 
     def _apply_ut_filter(self, spec: dict) -> None:
+        # было: self._fill_table(...) — метода не было
         self._fill_table(filter_expensearticles_ut(spec))
 
     def _reset_ut_filter(self) -> None:
@@ -120,16 +119,22 @@ class ExpenseArticlesWindow(QWidget):
     def load_data(self):
         self._fill(get_all_expense_articles())
 
+    # ✅ алиас для совместимости (чтобы Pylance не ругался)
+    def _fill_table(self, items) -> None:
+        self._fill(items)
+
     def _fill(self, items):
         self.table.setRowCount(0)
         for r, a in enumerate(items):
             self.table.insertRow(r)
+
             it_id = QTableWidgetItem(str(a.id))
             it_id.setData(Qt.ItemDataRole.UserRole, int(a.id))
             self.table.setItem(r, 0, it_id)
+
             self.table.setItem(r, 1, QTableWidgetItem(str(getattr(a, "name", "") or "")))
-            self.table.setItem(r, 2, QTableWidgetItem(a.group or ""))
-            self.table.setItem(r, 3, QTableWidgetItem("Да" if a.is_active else "Нет"))
+            self.table.setItem(r, 2, QTableWidgetItem(str(getattr(a, "group", "") or "")))
+            self.table.setItem(r, 3, QTableWidgetItem("Да" if getattr(a, "is_active", False) else "Нет"))
 
     def _selected_ids(self) -> list[int]:
         rows = {it.row() for it in self.table.selectedItems()}

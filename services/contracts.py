@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from sqlalchemy import or_, func
-from sqlalchemy.orm import joinedload, contains_eager
+from sqlalchemy.orm import joinedload
 
 import database.db as db
 from database.models import Contract, Contagent
@@ -42,7 +42,7 @@ def get_all_contracts() -> list[Contract]:
     try:
         return (
             session.query(Contract)
-            .options(joinedload(Contract.contagent))  # ✅ важно!
+            .options(joinedload(Contract.contagent))  # важно: без detached
             .filter(Contract.is_deleted == False)
             .order_by(Contract.date.desc())
             .all()
@@ -56,7 +56,7 @@ def get_deleted_contracts() -> list[Contract]:
     try:
         return (
             session.query(Contract)
-            .options(joinedload(Contract.contagent))  # ✅ важно!
+            .options(joinedload(Contract.contagent))  # важно: без detached
             .filter(Contract.is_deleted == True)
             .order_by(Contract.date.desc())
             .all()
@@ -70,9 +70,27 @@ def get_contract_by_id(contract_id: int) -> Contract | None:
     try:
         return (
             session.query(Contract)
-            .options(joinedload(Contract.contagent))  # ✅ чтобы форма тоже не падала
+            .options(joinedload(Contract.contagent))
             .filter(Contract.id == contract_id)
             .first()
+        )
+    finally:
+        session.close()
+
+
+def get_contracts_by_contagent(contagent_id: int) -> list[Contract]:
+    """Нужно для ui/contracts_window.py (и вообще полезно)."""
+    session = db.get_session()
+    try:
+        return (
+            session.query(Contract)
+            .options(joinedload(Contract.contagent))
+            .filter(
+                Contract.is_deleted == False,
+                Contract.contagent_id == contagent_id,
+            )
+            .order_by(Contract.date.desc())
+            .all()
         )
     finally:
         session.close()
@@ -158,12 +176,10 @@ def delete_contracts_forever(contract_ids: list[int]) -> None:
 def search_contracts(query: str) -> list[Contract]:
     session = db.get_session()
     try:
-        # тут мы join-им Contagent и говорим SQLAlchemy:
-        # "используй этот join как relationship Contract.contagent"
         q = (
             session.query(Contract)
+            .options(joinedload(Contract.contagent))  # важно: без detached
             .join(Contagent, Contagent.id == Contract.contagent_id)
-            .options(contains_eager(Contract.contagent))  # ✅ важно!
             .filter(Contract.is_deleted == False)
         )
 
