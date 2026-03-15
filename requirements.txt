@@ -1,2 +1,4 @@
-pyside6
-sqlalchemy
+PySide6>=6.5.0
+SQLAlchemy>=2.0.0
+alembic>=1.11.0
+psycopg2-binary>=2.9.6

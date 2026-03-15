@@ -1,41 +1,20 @@
-from __future__ import annotations
+from database.db import SessionLocal
 
-from contextlib import AbstractContextManager
-
-from sqlalchemy.orm import Session
-
-from database.db import get_session
-
-
-class UnitOfWork(AbstractContextManager):
-    """Unit of Work for transactional operations.
-
-    Usage:
-        with UnitOfWork() as uow:
-            ... use uow.session ...
-            uow.commit()
-
-    If an exception happens, transaction is rolled back.
-    """
-
+class UnitOfWork:
+    """Паттерн Unit of Work для управления транзакциями."""
     def __init__(self):
-        self.session: Session = get_session()
-        self._committed = False
+        self.session = SessionLocal()
 
-    def commit(self) -> None:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, traceback):
+        if exc_type is not None:
+            self.rollback()
+        self.session.close()
+
+    def commit(self):
         self.session.commit()
-        self._committed = True
 
-    def rollback(self) -> None:
+    def rollback(self):
         self.session.rollback()
-
-    def __exit__(self, exc_type, exc, tb):
-        try:
-            if exc_type is not None:
-                self.rollback()
-            elif not self._committed:
-                # default: commit on successful exit
-                self.commit()
-        finally:
-            self.session.close()
-        return False
