@@ -1,0 +1,1 @@
+from ui.catalogs.contagents.contagent_bank_account_form import ContagentBankAccountForm
