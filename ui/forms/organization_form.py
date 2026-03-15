@@ -1,1 +1,0 @@
-from ui.catalogs.organization.organization_form import OrganizationRegistration

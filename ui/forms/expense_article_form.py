@@ -1,1 +1,0 @@
-from ui.catalogs.expense_articles.expense_article_form import ExpenseArticleForm
